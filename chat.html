@@ -61,6 +61,21 @@
     const modelSel = document.getElementById('model');
 
     const STORAGE_KEY = 'ssp-chat-history-v1';
+
+function sanitizeMessages(msgs){
+  const allowed = new Set(['system','user','assistant']);
+  const mapped = msgs.map(m => {
+    let role = (m.role || 'user').toLowerCase();
+    if (role === 'sys') role = 'system';
+    if (!allowed.has(role)) role = 'user';
+    const content = (typeof m.content === 'string' ? m.content : String(m.content || '')).trim();
+    return content ? { role, content } : null;
+  }).filter(Boolean);
+  // keep last 16 turns for brevity
+  const MAX = 16;
+  return mapped.slice(-MAX);
+}
+
     let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     for (const m of messages) append(m.role, m.content);
 
@@ -181,7 +196,7 @@ async function streamToElement(resp, el){
         const resp = await fetch('https://my-chat-five-kappa.vercel.app/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: modelSel.value, messages })
+          body: JSON.stringify({ model: modelSel.value, messages: sanitizeMessages(messages) })
         });
         if (!resp.ok){
           try { const t = await resp.text(); aiDiv.textContent = '오류 ' + resp.status + ': ' + (t || resp.statusText); } catch { aiDiv.textContent = '오류: ' + resp.status + ' ' + resp.statusText; }
