@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GPT와 대화하기 (폴백 페이지)</title>
+  <title>GPT와 대화하기</title>
   <style>
     :root { font-family: system-ui, sans-serif; line-height: 1.4; }
     body { margin: 0; background:#0b0c10; color:#eef1f5; }
@@ -18,14 +18,18 @@
     .assistant { background:#111826; }
     .sys { font-size: 12px; color: #a9b1c4; margin-bottom: 6px; }
     .meta { font-size: 12px; color: #9aa3b2; margin-top: 4px; }
+    .err { color:#ffb4b4 }
   </style>
 </head>
 <body>
   <header>
-    <div><strong>GPT와 대화하기</strong> <span class="meta">— 스트리밍 폴백 데모</span></div>
+    <div><strong>GPT와 대화하기</strong> <span class="meta">— Edge + SSE</span></div>
   </header>
   <main>
-    <div class="sys">※ 이 페이지는 <code>/api/chat</code>(POST)로 요청합니다. GET은 버전 확인 JSON을 돌려주는 게 정상이에요.</div>
+    <div class="sys">
+      ※ 이 페이지는 <code>/api/chat</code>으로 <b>POST</b> 요청을 보냅니다.
+      (브라우저로 <code>/api/chat</code>을 직접 열면 GET 405가 뜨는 게 정상입니다.)
+    </div>
 
     <div id="log"></div>
 
@@ -35,18 +39,22 @@
     </form>
 
     <div class="meta" style="margin-top:12px">
-      모델: <code id="modelLabel">gpt-4o-mini</code> · 스트리밍: <code>true</code>
+      모델: <code id="modelLabel">gpt-4o-mini</code> · 스트리밍: <code>true</code> · 엔드포인트: <code id="ep"></code>
     </div>
   </main>
 
   <script>
+    // ★ 절대경로 사용: 로컬 파일로 열어도 Vercel API로 직접 POST합니다.
+    const ENDPOINT = 'https://my-chat-five-kappa.vercel.app/api/chat';
+
     const form = document.getElementById('f');
     const input = document.getElementById('q');
     const log = document.getElementById('log');
     const btn = document.getElementById('send');
 
-    let model = 'gpt-4o-mini';
+    const model = 'gpt-4o-mini';
     document.getElementById('modelLabel').textContent = model;
+    document.getElementById('ep').textContent = ENDPOINT;
 
     function addBubble(text, who) {
       const div = document.createElement('div');
@@ -58,50 +66,33 @@
     }
     function appendText(div, text) { div.textContent += text; }
 
-    // ── 공통 SSE 파서: Responses API & Chat Completions 둘 다 지원 ───────────
+    // SSE 블록 파서 (Responses API & Chat Completions 둘 다 처리)
     function handleSSEChunk(part, aDiv) {
-      // part: 한 이벤트 블록 (여러 줄)
       const lines = part.split('\n').map(l => l.trim());
-      const dataLine = lines.find(l => l.startsWith('data:'));
-      if (!dataLine) return { done: false };
+      const dataLines = lines.filter(l => l.startsWith('data:'));
+      for (const dl of dataLines) {
+        const data = dl.slice(5).trim();
+        if (!data) continue;
+        if (data === '[DONE]') return { done: true }; // chat/completions 종료 신호
+        try {
+          const json = JSON.parse(data);
 
-      const data = dataLine.slice(5).trim();
-      if (!data) return { done: false };
-
-      // Chat Completions의 [DONE] 종료 신호
-      if (data === '[DONE]') return { done: true };
-
-      try {
-        const json = JSON.parse(data);
-
-        // 1) Responses API 스트림
-        // 주요 타입:
-        // - response.output_text.delta   { type, delta }
-        // - response.output_text.done
-        // - response.completed
-        // - response.refusal.delta (선택 처리)
-        if (json.type && typeof json.type === 'string') {
-          if (json.type === 'response.output_text.delta' && typeof json.delta === 'string') {
-            appendText(aDiv, json.delta);
-          } else if (json.type === 'response.refusal.delta' && typeof json.delta === 'string') {
-            // 필요 시 거부 이유를 붙이고 싶다면 주석 해제
-            // appendText(aDiv, `\n[refusal] ${json.delta}`);
-          } else if (json.type === 'response.completed' || json.type === 'response.output_text.done') {
-            return { done: true };
+          // Responses API
+          if (json.type) {
+            if (json.type === 'response.output_text.delta' && typeof json.delta === 'string') {
+              appendText(aDiv, json.delta);
+            } else if (json.type === 'response.completed' || json.type === 'response.output_text.done') {
+              return { done: true };
+            }
+            continue;
           }
-          return { done: false };
-        }
 
-        // 2) Chat Completions 스트림(delta.content)
-        const delta = json?.choices?.[0]?.delta;
-        if (delta?.content) appendText(aDiv, delta.content);
-
-        // Chat Completions은 최종 [DONE] 이벤트로 종료되므로 여기선 done=false
-        return { done: false };
-      } catch {
-        // 하트비트 등 비-JSON은 무시
-        return { done: false };
+          // Chat Completions
+          const delta = json?.choices?.[0]?.delta;
+          if (delta?.content) appendText(aDiv, delta.content);
+        } catch (_) { /* JSON이 아니면 무시 */ }
       }
+      return { done: false };
     }
 
     async function streamChat(userText) {
@@ -113,59 +104,59 @@
       const body = {
         model,
         stream: true,
-        // 서버는 messages를 받아 자동으로 transcript로 변환합니다.
         messages: [{ role: 'user', content: userText }]
       };
 
       let resp;
       try {
-        resp = await fetch('/api/chat', {
+        resp = await fetch(ENDPOINT, {
           method: 'POST',
+          mode: 'cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
         });
       } catch (e) {
+        aDiv.classList.add('err');
         appendText(aDiv, `요청 실패: ${e.message}`);
-        btn.disabled = false; input.disabled = false;
+        btn.disabled = false; input.disabled = false; input.focus();
         return;
       }
 
       if (!resp.ok) {
         const text = await resp.text().catch(()=> '');
-        appendText(aDiv, `서버 오류 ${resp.status}: ${text || '응답 본문 없음'}`);
-        btn.disabled = false; input.disabled = false;
+        aDiv.classList.add('err');
+        appendText(aDiv, `서버 오류 ${resp.status}: ${text || '응답 본문 없음'}\n(※ 브라우저가 GET으로 보내면 405가 납니다. 이 화면은 POST로 전송합니다.)`);
+        btn.disabled = false; input.disabled = false; input.focus();
         return;
       }
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
-      let stop = false;
+      let buffer = '', stop = false;
 
       try {
         while (!stop) {
           const { value, done } = await reader.read();
           if (done) break;
-
           buffer += decoder.decode(value, { stream: true });
 
           // SSE는 빈 줄(\n\n)로 이벤트 구분
           const parts = buffer.split('\n\n');
           buffer = parts.pop() || '';
-
           for (const part of parts) {
             const { done: partDone } = handleSSEChunk(part, aDiv);
             if (partDone) { stop = true; break; }
           }
         }
       } catch (err) {
+        aDiv.classList.add('err');
         appendText(aDiv, `\n(스트리밍 중단: ${err.message})`);
       } finally {
-        btn.disabled = false; input.disabled = false;
-        input.focus();
+        btn.disabled = false; input.disabled = false; input.focus();
       }
     }
 
+    // 폼 기본 GET 전송 방지 + POST로 호출
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = input.value.trim();
