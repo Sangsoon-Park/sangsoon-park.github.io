@@ -2,6 +2,9 @@
 
 @echo off
 cd /d "C:\Users\alive\Desktop\기타\github\sangsoon-park.github.io"
+:: https://sangsoon-park.github.io/
+:: https://www.sangsoon.com/
+
 
 :: 현재 시간을 yyyyMMddHHmmss 형식으로 만들기
 setlocal enabledelayedexpansion

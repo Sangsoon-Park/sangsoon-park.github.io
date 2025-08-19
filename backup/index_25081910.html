@@ -58,11 +58,7 @@
     }
     .btn:hover { background: var(--btnHover); transform: translateY(-1px); }
     footer { margin-top: 28px; font-size: 12px; color: var(--muted); text-align: center; }
-  
-    .counter { margin-left: 8px; color: var(--muted); white-space: nowrap; }
-    .counter b { color: var(--text); }
-
-</style>
+  </style>
 </head>
 <body>
   <main class="wrap">
@@ -80,70 +76,9 @@
         <a class="btn" href="https://www.facebook.com/sangsoon.park.78" target="_blank" rel="noopener">Facebook</a>
         <a class="btn" href="./resume.html">이력 / 프로필</a>
       </div>
-      <footer>© <span id="y"></span> Sangsoon Park — sangsoon.com <span class="counter">| 방문자 <b id="visits-total">-</b> · 오늘 <b id="visits-today">-</b></span></footer>
+      <footer>© <span id="y"></span> Sangsoon Park — sangsoon.com</footer>
     </section>
   </main>
   <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
-
-<script>
-  // 연도 표시
-  document.getElementById('y').textContent = new Date().getFullYear();
-
-  // 방문자 카운터 (CountAPI 사용)
-  // 참고: https://api.countapi.xyz/ (hit/get/create endpoints)
-  (function() {
-    const NS = 'sangsoon.com';               // namespace (도메인 권장)
-    const TOTAL_KEY = 'home_total';          // 전체 방문
-    // 오늘(Asia/Seoul 기준) 키
-    const toKST = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' });
-    const todayStr = toKST.slice(0,10).replace(/-/g, '');
-    const TODAY_KEY = 'home_' + todayStr;
-    // 브라우저에서 오늘 이미 카운트 했는지 체크
-    const visitedKey = 'visited-' + todayStr;
-
-    const totalEl = document.getElementById('visits-total');
-    const todayEl = document.getElementById('visits-today');
-
-    function setNum(el, v) { if (el && Number.isFinite(v)) el.textContent = v.toLocaleString(); }
-
-    async function api(path) {
-      const res = await fetch('https://api.countapi.xyz' + path, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Counter API error: ' + res.status);
-      const data = await res.json();
-      return data.value;
-    }
-
-    async function init() {
-      const shouldCount = !localStorage.getItem(visitedKey);
-      try {
-        let total, today;
-        if (shouldCount) {
-          // 첫 방문(오늘)일 때만 1회 증가
-          [total, today] = await Promise.all([
-            api(`/hit/${NS}/${TOTAL_KEY}`),
-            api(`/hit/${NS}/${TODAY_KEY}`)
-          ]);
-          localStorage.setItem(visitedKey, '1');
-        } else {
-          // 오늘 이미 카운트 했으면 값만 조회
-          // TOTAL_KEY가 없을 수도 있으니 없으면 생성(0) 후 0 반환
-          const getTotal = api(`/get/${NS}/${TOTAL_KEY}`).catch(async () => {
-            await api(`/create?namespace=${NS}&key=${TOTAL_KEY}&value=0`);
-            return 0;
-          });
-          const getToday = api(`/get/${NS}/${TODAY_KEY}`).catch(() => 0);
-          [total, today] = await Promise.all([getTotal, getToday]);
-        }
-        setNum(totalEl, total);
-        setNum(todayEl, today);
-      } catch (e) {
-        // 실패 시 표시만 숨김 처리 (선택)
-        console.warn(e);
-      }
-    }
-    init();
-  })();
-</script>
-
 </body>
 </html>
