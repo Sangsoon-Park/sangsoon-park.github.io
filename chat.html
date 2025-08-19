@@ -3,29 +3,34 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chat with GPT — Simple</title>
+  <title>Chat — Simple (text-only)</title>
   <style>
-    :root{ --bg:#0b1020; --border:#26304a; --muted:#9aa7bd; --text:#e5eefc; }
     body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Pretendard,"Noto Sans KR",sans-serif;background:#0b1020;color:#e5eefc}
     .wrap{max-width:900px;margin:0 auto;padding:24px}
-    .card{border:1px solid var(--border);border-radius:14px;overflow:hidden}
-    header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center}
+    .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .ver{font-size:12px;opacity:.8}
+    .card{border:1px solid #26304a;border-radius:14px;overflow:hidden}
+    header{padding:12px 14px;border-bottom:1px solid #26304a;display:flex;gap:12px;align-items:center}
     .chat{height:60vh;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
-    .msg{max-width:80%;padding:10px 12px;border:1px solid var(--border);border-radius:12px;white-space:pre-wrap}
+    .msg{max-width:80%;padding:10px 12px;border:1px solid #26304a;border-radius:12px;white-space:pre-wrap}
     .you{align-self:flex-end;background:#1e2a55}
     .ai{align-self:flex-start;background:#121a38}
-    .input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border)}
-    textarea{flex:1;min-height:56px;max-height:220px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0f1635;color:var(--text);resize:vertical}
-    button{padding:0 14px;border-radius:10px;border:1px solid var(--border);background:#0f1838;color:var(--text);cursor:pointer}
-    small{color:var(--muted)}
+    .input{display:flex;gap:8px;padding:12px;border-top:1px solid #26304a}
+    textarea{flex:1;min-height:56px;max-height:220px;padding:10px 12px;border-radius:10px;border:1px solid #26304a;background:#0f1635;color:#e5eefc;resize:vertical}
+    button{padding:0 14px;border-radius:10px;border:1px solid #26304a;background:#0f1838;color:#e5eefc;cursor:pointer}
+    small{opacity:.8}
   </style>
 </head>
 <body>
   <div class="wrap">
+    <div class="row">
+      <button id="reset">Reset</button>
+      <span class="ver" id="ver">checking version…</span>
+    </div>
     <div class="card">
       <header>
-        <strong>GPT와 대화하기 (간단 모드)</strong>
-        <small>이 모드는 마지막 입력만 전송합니다.</small>
+        <strong>GPT와 대화하기 (텍스트 전송 모드)</strong>
+        <small>현재 입력만 전송합니다.</small>
       </header>
       <div id="chat" class="chat"></div>
       <div class="input">
@@ -38,7 +43,20 @@
     const chat = document.getElementById('chat');
     const input = document.getElementById('prompt');
     const btn = document.getElementById('send');
+    const resetBtn = document.getElementById('reset');
+    const verEl = document.getElementById('ver');
     const API_ENDPOINT = 'https://my-chat-five-kappa.vercel.app/api/chat';
+
+    async function checkVersion(){
+      try{
+        const r = await fetch(API_ENDPOINT, { method:'GET' });
+        const t = await r.text();
+        verEl.textContent = 'server says: ' + t;
+      }catch(e){
+        verEl.textContent = 'version check failed: ' + e.message;
+      }
+    }
+    checkVersion();
 
     function append(role, text){
       const div = document.createElement('div');
@@ -52,6 +70,12 @@
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); btn.click(); }
     });
+
+    resetBtn.onclick = () => {
+      try { localStorage.removeItem('ssp-chat-history-v1'); } catch {}
+      chat.innerHTML = '';
+      append('ai', '로컬 저장소를 초기화했어요. 다시 질문해보세요.');
+    };
 
     async function stream(resp, el){
       const reader = resp.body.getReader();
