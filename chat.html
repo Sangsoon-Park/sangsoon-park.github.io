@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat with GPT — Sangsoon Park</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#0f1530; --border:#26304a; --muted:#9aa7bd; --text:#e5eefc; --btn:#121a38; --btnHover:#182148;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","맑은 고딕",sans-serif; color:var(--text); background:radial-gradient(1200px 800px at 80% -10%, rgba(56,189,248,0.15), transparent), var(--bg);}
+    .wrap{max-width:900px; margin:0 auto; padding:24px}
+    a.back{display:inline-flex; align-items:center; gap:8px; text-decoration:none; color:var(--muted)}
+    .card{margin-top:16px; border:1px solid var(--border); border-radius:16px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); overflow:hidden}
+    header{padding:18px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between}
+    header h1{font-size:18px; margin:0}
+    #model{background:transparent; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:6px 10px}
+    .chat{height:62vh; overflow:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px}
+    .msg{max-width:80%; padding:12px 14px; border-radius:14px; line-height:1.6; border:1px solid var(--border); white-space:pre-wrap}
+    .you{align-self:flex-end; background:#1e2a55}
+    .ai{align-self:flex-start; background:#121a38}
+    .sys{align-self:center; font-size:12px; color:var(--muted); border:none}
+    .input{display:flex; gap:10px; padding:14px; border-top:1px solid var(--border)}
+    .input textarea{flex:1; resize:vertical; min-height:56px; max-height:220px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1635; color:var(--text)}
+    .input button{padding:0 16px; border-radius:12px; border:1px solid var(--border); background:#0f1838; color:var(--text); font-weight:600; cursor:pointer}
+    .input button:disabled{opacity:.6; cursor:not-allowed}
+    footer{font-size:12px; color:var(--muted); text-align:center; padding:16px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="./index.html">← 홈으로</a>
+    <div class="card">
+      <header>
+        <h1>GPT와 대화하기</h1>
+        <div>
+          <label for="model" style="margin-right:6px; color:var(--muted)">모델</label>
+          <select id="model">
+            <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
+            <option value="gpt-4o">gpt-4o</option>
+          </select>
+        </div>
+      </header>
+      <div id="chat" class="chat">
+        <div class="msg sys">Sangsoon의 개인 GPT 창입니다. 대화는 브라우저에서만 보관돼요.</div>
+      </div>
+      <div class="input">
+        <textarea id="prompt" placeholder="무엇을 도와드릴까요? Shift+Enter 줄바꿈, Enter 전송"></textarea>
+        <button id="send">전송</button>
+      </div>
+    </div>
+    <footer>© <span id="y"></span> Sangsoon Park — sangsoon-park.github.io</footer>
+  </div>
+  <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+
+    const chat = document.getElementById('chat');
+    const promptEl = document.getElementById('prompt');
+    const btn = document.getElementById('send');
+    const modelSel = document.getElementById('model');
+
+    const STORAGE_KEY = 'ssp-chat-history-v1';
+    let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    for (const m of messages) append(m.role, m.content);
+
+    function append(role, content){
+      const div = document.createElement('div');
+      div.className = 'msg ' + (role === 'user' ? 'you' : (role === 'assistant' ? 'ai' : 'sys'));
+      div.textContent = content;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    function persist(role, content){
+      messages.push({ role, content });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    }
+
+    function enterHandler(e){
+      if (e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        btn.click();
+      }
+    }
+    promptEl.addEventListener('keydown', enterHandler);
+
+    async function streamToElement(resp, el){
+      const ctype = resp.headers.get('Content-Type') || '';
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+
+      let buffer = '';
+      for(;;){
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream:true });
+        if (ctype.includes('text/event-stream')){
+          buffer += chunk;
+          let idx;
+          while ((idx = buffer.indexOf('\n\n')) >= 0){
+            const block = buffer.slice(0, idx); buffer = buffer.slice(idx+2);
+            for (const line of block.split('\n')){
+              const t = line.trim();
+              if (t.startsWith('data:')){
+                const payload = t.slice(5).trim();
+                if (payload === '[DONE]') return;
+                el.textContent += payload;
+                chat.scrollTop = chat.scrollHeight;
+              }
+            }
+          }
+        } else {
+          el.textContent += chunk;
+          chat.scrollTop = chat.scrollHeight;
+        }
+      }
+    }
+
+    btn.addEventListener('click', async () => {
+      const content = promptEl.value.trim();
+      if (!content) return;
+      promptEl.value = '';
+      btn.disabled = true;
+
+      append('user', content);
+      persist('user', content);
+
+      const aiDiv = document.createElement('div');
+      aiDiv.className = 'msg ai';
+      aiDiv.textContent = '...';
+      chat.appendChild(aiDiv);
+      chat.scrollTop = chat.scrollHeight;
+
+      try{
+        const resp = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: modelSel.value, messages })
+        });
+        if (!resp.ok){
+          aiDiv.textContent = '오류: ' + resp.status + ' ' + resp.statusText;
+        } else {
+          aiDiv.textContent = '';
+          await streamToElement(resp, aiDiv);
+          persist('assistant', aiDiv.textContent);
+        }
+      }catch(e){
+        aiDiv.textContent = '네트워크 오류: ' + e.message;
+      }finally{
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
