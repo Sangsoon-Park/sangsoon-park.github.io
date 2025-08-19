@@ -132,7 +132,7 @@
       chat.scrollTop = chat.scrollHeight;
 
       try{
-        const resp = await fetch('/api/chat', {
+        const resp = await fetch('https://my-chat-five-kappa.vercel.app/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: modelSel.value, messages })
