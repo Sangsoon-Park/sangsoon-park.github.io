@@ -3,200 +3,109 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chat with GPT — Sangsoon Park</title>
+  <title>Chat with GPT — Simple</title>
   <style>
-    :root{
-      --bg:#0b1020; --card:#0f1530; --border:#26304a; --muted:#9aa7bd; --text:#e5eefc; --btn:#121a38; --btnHover:#182148;
-    }
-    *{box-sizing:border-box}
-    body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","맑은 고딕",sans-serif; color:var(--text); background:radial-gradient(1200px 800px at 80% -10%, rgba(56,189,248,0.15), transparent), var(--bg);}
-    .wrap{max-width:900px; margin:0 auto; padding:24px}
-    a.back{display:inline-flex; align-items:center; gap:8px; text-decoration:none; color:var(--muted)}
-    .card{margin-top:16px; border:1px solid var(--border); border-radius:16px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); overflow:hidden}
-    header{padding:18px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between}
-    header h1{font-size:18px; margin:0}
-    #model{background:transparent; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:6px 10px}
-    .chat{height:62vh; overflow:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px}
-    .msg{max-width:80%; padding:12px 14px; border-radius:14px; line-height:1.6; border:1px solid var(--border); white-space:pre-wrap}
-    .you{align-self:flex-end; background:#1e2a55}
-    .ai{align-self:flex-start; background:#121a38}
-    .sys{align-self:center; font-size:12px; color:var(--muted); border:none}
-    .input{display:flex; gap:10px; padding:14px; border-top:1px solid var(--border)}
-    .input textarea{flex:1; resize:vertical; min-height:56px; max-height:220px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1635; color:var(--text)}
-    .input button{padding:0 16px; border-radius:12px; border:1px solid var(--border); background:#0f1838; color:var(--text); font-weight:600; cursor:pointer}
-    .input button:disabled{opacity:.6; cursor:not-allowed}
-    footer{font-size:12px; color:var(--muted); text-align:center; padding:16px}
+    :root{ --bg:#0b1020; --border:#26304a; --muted:#9aa7bd; --text:#e5eefc; }
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Pretendard,"Noto Sans KR",sans-serif;background:#0b1020;color:#e5eefc}
+    .wrap{max-width:900px;margin:0 auto;padding:24px}
+    .card{border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center}
+    .chat{height:60vh;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+    .msg{max-width:80%;padding:10px 12px;border:1px solid var(--border);border-radius:12px;white-space:pre-wrap}
+    .you{align-self:flex-end;background:#1e2a55}
+    .ai{align-self:flex-start;background:#121a38}
+    .input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--border)}
+    textarea{flex:1;min-height:56px;max-height:220px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0f1635;color:var(--text);resize:vertical}
+    button{padding:0 14px;border-radius:10px;border:1px solid var(--border);background:#0f1838;color:var(--text);cursor:pointer}
+    small{color:var(--muted)}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <a class="back" href="./index.html">← 홈으로</a>
     <div class="card">
       <header>
-        <h1>GPT와 대화하기</h1>
-        <div>
-          <label for="model" style="margin-right:6px; color:var(--muted)">모델</label>
-          <select id="model">
-            <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
-            <option value="gpt-4o">gpt-4o</option>
-          </select>
-        </div>
+        <strong>GPT와 대화하기 (간단 모드)</strong>
+        <small>이 모드는 마지막 입력만 전송합니다.</small>
       </header>
-      <div id="chat" class="chat">
-        <div class="msg sys">Sangsoon의 개인 GPT 창입니다. 대화는 브라우저에서만 보관돼요.</div>
-      </div>
+      <div id="chat" class="chat"></div>
       <div class="input">
-        <textarea id="prompt" placeholder="무엇을 도와드릴까요? Shift+Enter 줄바꿈, Enter 전송"></textarea>
+        <textarea id="prompt" placeholder="메시지를 입력하세요. Enter=전송, Shift+Enter=줄바꿈"></textarea>
         <button id="send">전송</button>
       </div>
     </div>
-    <footer>© <span id="y"></span> Sangsoon Park — sangsoon-park.github.io</footer>
   </div>
   <script>
-    // Year
-    document.getElementById('y').textContent = new Date().getFullYear();
-
-    // Elements
     const chat = document.getElementById('chat');
-    const promptEl = document.getElementById('prompt');
+    const input = document.getElementById('prompt');
     const btn = document.getElementById('send');
-    const modelSel = document.getElementById('model');
+    const API_ENDPOINT = 'https://my-chat-five-kappa.vercel.app/api/chat';
 
-    // Local history
-    const STORAGE_KEY = 'ssp-chat-history-v1';
-    function append(role, content){
+    function append(role, text){
       const div = document.createElement('div');
-      div.className = 'msg ' + (role === 'user' ? 'you' : (role === 'assistant' ? 'ai' : 'sys'));
-      div.textContent = content;
+      div.className = 'msg ' + (role === 'user' ? 'you' : 'ai');
+      div.textContent = text;
       chat.appendChild(div);
       chat.scrollTop = chat.scrollHeight;
-    }
-    function persist(role, content){
-      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      history.push({ role, content });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-    }
-    function loadHistory(){
-      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      for (const m of history) append(m.role, m.content);
-      return history;
-    }
-    let messages = loadHistory();
-
-    // Normalize messages for API
-    function sanitizeMessages(msgs){
-      const allowed = new Set(['system','user','assistant']);
-      const mapped = msgs.map(m => {
-        let role = (m.role || 'user').toLowerCase();
-        if (role === 'sys') role = 'system';
-        if (!allowed.has(role)) role = 'user';
-        const content = (typeof m.content === 'string' ? m.content : String(m.content || '')).trim();
-        return content ? { role, content } : null;
-      }).filter(Boolean);
-      return mapped.slice(-16);
+      return div;
     }
 
-    // Enter to send
-    promptEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        btn.click();
-      }
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); btn.click(); }
     });
 
-    // SSE stream reader (OpenAI Responses API)
-    async function streamToElement(resp, el){
-      const ctype = resp.headers.get('Content-Type') || '';
+    async function stream(resp, el){
       const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      function handleBlock(block){
-        let eventType = null;
-        const lines = block.split('\n');
-        for (const raw of lines){
-          const line = raw.trim();
-          if (!line) continue;
-          if (line.startsWith('event:')) { eventType = line.slice(6).trim(); continue; }
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (payload === '[DONE]') return 'DONE';
-
-          try {
-            const obj = JSON.parse(payload);
-            const t = obj.type || eventType || '';
-            if (t === 'response.output_text.delta' && typeof obj.delta === 'string') {
-              el.textContent += obj.delta;
-              chat.scrollTop = chat.scrollHeight;
-            } else if ((t === 'error' || t === 'response.error') && obj.error && obj.error.message) {
-              el.textContent = '오류: ' + obj.error.message;
-            } else if (obj.text && typeof obj.text === 'string') {
-              el.textContent += obj.text;
+      const dec = new TextDecoder();
+      let buf = '';
+      for(;;){
+        const {value, done} = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, {stream:true});
+        let idx;
+        while((idx = buf.indexOf('\\n\\n')) >= 0){
+          const block = buf.slice(0, idx); buf = buf.slice(idx+2);
+          for (const line of block.split('\\n')){
+            const t = line.trim();
+            if (!t.startsWith('data:')) continue;
+            const payload = t.slice(5).trim();
+            if (payload === '[DONE]') return;
+            try{
+              const obj = JSON.parse(payload);
+              if (obj.type === 'response.output_text.delta' && typeof obj.delta === 'string'){
+                el.textContent += obj.delta;
+              } else if (obj.text && typeof obj.text === 'string'){
+                el.textContent += obj.text;
+              }
+            }catch{
+              el.textContent += payload;
             }
-          } catch {
-            // Not JSON, append raw
-            el.textContent += payload;
             chat.scrollTop = chat.scrollHeight;
           }
         }
-        return null;
-      }
-
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-
-        if (ctype.includes('text/event-stream')){
-          buffer += chunk;
-          let idx;
-          while ((idx = buffer.indexOf('\n\n')) >= 0){
-            const block = buffer.slice(0, idx);
-            buffer = buffer.slice(idx + 2);
-            const doneFlag = handleBlock(block);
-            if (doneFlag === 'DONE') return;
-          }
-        } else {
-          el.textContent += chunk;
-          chat.scrollTop = chat.scrollHeight;
-        }
       }
     }
 
-    // Send
     btn.addEventListener('click', async () => {
-      const content = promptEl.value.trim();
-      if (!content) return;
-      promptEl.value = '';
+      const q = input.value.trim();
+      if (!q) return;
+      input.value = '';
       btn.disabled = true;
-
-      append('user', content);
-      persist('user', content);
-      messages.push({ role:'user', content });
-
-      const aiDiv = document.createElement('div');
-      aiDiv.className = 'msg ai';
-      aiDiv.textContent = '...';
-      chat.appendChild(aiDiv);
-      chat.scrollTop = chat.scrollHeight;
-
+      append('user', q);
+      const ai = append('assistant', '');
       try{
-        const resp = await fetch('https://my-chat-five-kappa.vercel.app/api/chat', {
+        const resp = await fetch(API_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: modelSel.value, messages: sanitizeMessages(messages) })
+          body: JSON.stringify({ model: 'gpt-4o-mini', prompt: q })
         });
         if (!resp.ok){
           const t = await resp.text().catch(()=>'');
-          aiDiv.textContent = '오류 ' + resp.status + (t ? (': ' + t) : '');
+          ai.textContent = `오류 ${resp.status}: ${t || resp.statusText}`;
         } else {
-          aiDiv.textContent = '';
-          await streamToElement(resp, aiDiv);
-          persist('assistant', aiDiv.textContent);
-          messages.push({ role:'assistant', content: aiDiv.textContent });
+          await stream(resp, ai);
         }
       }catch(e){
-        aiDiv.textContent = '네트워크 오류: ' + e.message;
+        ai.textContent = '네트워크 오류: ' + e.message;
       }finally{
         btn.disabled = false;
       }

@@ -53,17 +53,17 @@
     <footer>© <span id="y"></span> Sangsoon Park — sangsoon-park.github.io</footer>
   </div>
   <script>
+    // Year
     document.getElementById('y').textContent = new Date().getFullYear();
 
+    // Elements
     const chat = document.getElementById('chat');
     const promptEl = document.getElementById('prompt');
     const btn = document.getElementById('send');
     const modelSel = document.getElementById('model');
 
+    // Local history
     const STORAGE_KEY = 'ssp-chat-history-v1';
-    let messages = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    for (const m of messages) append(m.role, m.content);
-
     function append(role, content){
       const div = document.createElement('div');
       div.className = 'msg ' + (role === 'user' ? 'you' : (role === 'assistant' ? 'ai' : 'sys'));
@@ -72,42 +72,89 @@
       chat.scrollTop = chat.scrollHeight;
     }
     function persist(role, content){
-      messages.push({ role, content });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      history.push({ role, content });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    }
+    function loadHistory(){
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      for (const m of history) append(m.role, m.content);
+      return history;
+    }
+    let messages = loadHistory();
+
+    // Normalize messages for API
+    function sanitizeMessages(msgs){
+      const allowed = new Set(['system','user','assistant']);
+      const mapped = msgs.map(m => {
+        let role = (m.role || 'user').toLowerCase();
+        if (role === 'sys') role = 'system';
+        if (!allowed.has(role)) role = 'user';
+        const content = (typeof m.content === 'string' ? m.content : String(m.content || '')).trim();
+        return content ? { role, content } : null;
+      }).filter(Boolean);
+      return mapped.slice(-16);
     }
 
-    function enterHandler(e){
-      if (e.key === 'Enter' && !e.shiftKey){
+    // Enter to send
+    promptEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         btn.click();
       }
-    }
-    promptEl.addEventListener('keydown', enterHandler);
+    });
 
+    // SSE stream reader (OpenAI Responses API)
     async function streamToElement(resp, el){
       const ctype = resp.headers.get('Content-Type') || '';
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-
       let buffer = '';
-      for(;;){
+
+      function handleBlock(block){
+        let eventType = null;
+        const lines = block.split('\n');
+        for (const raw of lines){
+          const line = raw.trim();
+          if (!line) continue;
+          if (line.startsWith('event:')) { eventType = line.slice(6).trim(); continue; }
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') return 'DONE';
+
+          try {
+            const obj = JSON.parse(payload);
+            const t = obj.type || eventType || '';
+            if (t === 'response.output_text.delta' && typeof obj.delta === 'string') {
+              el.textContent += obj.delta;
+              chat.scrollTop = chat.scrollHeight;
+            } else if ((t === 'error' || t === 'response.error') && obj.error && obj.error.message) {
+              el.textContent = '오류: ' + obj.error.message;
+            } else if (obj.text && typeof obj.text === 'string') {
+              el.textContent += obj.text;
+            }
+          } catch {
+            // Not JSON, append raw
+            el.textContent += payload;
+            chat.scrollTop = chat.scrollHeight;
+          }
+        }
+        return null;
+      }
+
+      for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream:true });
+        const chunk = decoder.decode(value, { stream: true });
+
         if (ctype.includes('text/event-stream')){
           buffer += chunk;
           let idx;
           while ((idx = buffer.indexOf('\n\n')) >= 0){
-            const block = buffer.slice(0, idx); buffer = buffer.slice(idx+2);
-            for (const line of block.split('\n')){
-              const t = line.trim();
-              if (t.startsWith('data:')){
-                const payload = t.slice(5).trim();
-                if (payload === '[DONE]') return;
-                el.textContent += payload;
-                chat.scrollTop = chat.scrollHeight;
-              }
-            }
+            const block = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+            const doneFlag = handleBlock(block);
+            if (doneFlag === 'DONE') return;
           }
         } else {
           el.textContent += chunk;
@@ -116,6 +163,7 @@
       }
     }
 
+    // Send
     btn.addEventListener('click', async () => {
       const content = promptEl.value.trim();
       if (!content) return;
@@ -124,6 +172,7 @@
 
       append('user', content);
       persist('user', content);
+      messages.push({ role:'user', content });
 
       const aiDiv = document.createElement('div');
       aiDiv.className = 'msg ai';
@@ -135,14 +184,16 @@
         const resp = await fetch('https://my-chat-five-kappa.vercel.app/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: modelSel.value, messages })
+          body: JSON.stringify({ model: modelSel.value, messages: sanitizeMessages(messages) })
         });
         if (!resp.ok){
-          aiDiv.textContent = '오류: ' + resp.status + ' ' + resp.statusText;
+          const t = await resp.text().catch(()=>'');
+          aiDiv.textContent = '오류 ' + resp.status + (t ? (': ' + t) : '');
         } else {
           aiDiv.textContent = '';
           await streamToElement(resp, aiDiv);
           persist('assistant', aiDiv.textContent);
+          messages.push({ role:'assistant', content: aiDiv.textContent });
         }
       }catch(e){
         aiDiv.textContent = '네트워크 오류: ' + e.message;
