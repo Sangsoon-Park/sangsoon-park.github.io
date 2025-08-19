@@ -86,63 +86,99 @@
   <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
 
 <script>
-  // 연도 표시
-  document.getElementById('y').textContent = new Date().getFullYear();
+(function(){
+  // 1) 연도 표기
+  try {
+    var y = document.getElementById('y');
+    if (y) y.textContent = new Date().getFullYear();
+  } catch(e){ console.warn('year-set failed', e); }
 
-  // 방문자 카운터 (CountAPI 사용)
-  // 참고: https://api.countapi.xyz/ (hit/get/create endpoints)
-  (function() {
-    const NS = 'sangsoon.com';               // namespace (도메인 권장)
-    const TOTAL_KEY = 'home_total';          // 전체 방문
-    // 오늘(Asia/Seoul 기준) 키
-    const toKST = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' });
-    const todayStr = toKST.slice(0,10).replace(/-/g, '');
-    const TODAY_KEY = 'home_' + todayStr;
-    // 브라우저에서 오늘 이미 카운트 했는지 체크
-    const visitedKey = 'visited-' + todayStr;
+  // 2) 방문자 카운터 (CountAPI) - 디버그 표시 포함
+  var totalEl = document.getElementById('visits-total');
+  var todayEl = document.getElementById('visits-today');
 
-    const totalEl = document.getElementById('visits-total');
-    const todayEl = document.getElementById('visits-today');
-
-    function setNum(el, v) { if (el && Number.isFinite(v)) el.textContent = v.toLocaleString(); }
-
-    async function api(path) {
-      const res = await fetch('https://api.countapi.xyz' + path, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Counter API error: ' + res.status);
-      const data = await res.json();
-      return data.value;
+  // 디버그 메시지 표시용 (필요시 화면에 작은 문구로 노출)
+  function showDebug(msg){
+    var el = document.getElementById('counter-debug');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'counter-debug';
+      el.style.cssText = 'font-size:11px;opacity:.6;margin-top:6px;';
+      var footer = document.querySelector('footer');
+      if (footer) footer.appendChild(el);
+      else document.body.appendChild(el);
     }
+    el.textContent = 'Counter notice: ' + msg;
+  }
 
-    async function init() {
-      const shouldCount = !localStorage.getItem(visitedKey);
-      try {
-        let total, today;
-        if (shouldCount) {
-          // 첫 방문(오늘)일 때만 1회 증가
-          [total, today] = await Promise.all([
-            api(`/hit/${NS}/${TOTAL_KEY}`),
-            api(`/hit/${NS}/${TODAY_KEY}`)
-          ]);
-          localStorage.setItem(visitedKey, '1');
-        } else {
-          // 오늘 이미 카운트 했으면 값만 조회
-          // TOTAL_KEY가 없을 수도 있으니 없으면 생성(0) 후 0 반환
-          const getTotal = api(`/get/${NS}/${TOTAL_KEY}`).catch(async () => {
-            await api(`/create?namespace=${NS}&key=${TOTAL_KEY}&value=0`);
-            return 0;
-          });
-          const getToday = api(`/get/${NS}/${TODAY_KEY}`).catch(() => 0);
-          [total, today] = await Promise.all([getTotal, getToday]);
-        }
-        setNum(totalEl, total);
-        setNum(todayEl, today);
-      } catch (e) {
-        // 실패 시 표시만 숨김 처리 (선택)
-        console.warn(e);
+  function setNum(el, v) {
+    if (el && Number.isFinite(v)) el.textContent = Number(v).toLocaleString();
+  }
+
+  // Asia/Seoul 기준 YYYYMMDD
+  function yyyymmdd_kst(){
+    var s = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' });
+    return s.slice(0,10).replace(/-/g,'');
+  }
+
+  var todayKey = 'home_' + yyyymmdd_kst();
+  var visitedKey = 'visited-' + todayKey;
+
+  // 메인/대체 네임스페이스 둘 다 시도 (sangsoon.com / www.sangsoon.com)
+  var namespaces = ['sangsoon.com','www.sangsoon.com'];
+  var TOTAL_KEY = 'home_total';
+
+  function req(path){
+    return fetch('https://api.countapi.xyz' + path, { cache: 'no-store' })
+      .then(function(r){
+        if (!r.ok) throw new Error('HTTP '+r.status);
+        return r.json();
+      })
+      .then(function(j){ return j && j.value; });
+  }
+
+  // 각 네임스페이스로 순차 시도
+  function tryInOrder(fns){
+    return fns.reduce(function(promise, fn){
+      return promise.catch(fn);
+    }, Promise.reject(new Error('start')));
+  }
+
+  function hitNS(ns){
+    return function(){
+      // 오늘 첫 방문이면 hit, 아니면 get
+      var firstToday = !localStorage.getItem(visitedKey);
+      if (firstToday){
+        return Promise.all([
+          req('/hit/'+ns+'/'+TOTAL_KEY),
+          req('/hit/'+ns+'/'+todayKey)
+        ]).then(function(values){
+          localStorage.setItem(visitedKey,'1');
+          return values;
+        });
+      } else {
+        var getTotal = req('/get/'+ns+'/'+TOTAL_KEY).catch(function(){
+          // total 키가 없으면 0으로 생성
+          return req('/create?namespace='+encodeURIComponent(ns)+'&key='+encodeURIComponent(TOTAL_KEY)+'&value=0')
+                 .then(function(){ return 0; });
+        });
+        var getToday = req('/get/'+ns+'/'+todayKey).catch(function(){ return 0; });
+        return Promise.all([getTotal, getToday]);
       }
-    }
-    init();
-  })();
+    };
+  }
+
+  tryInOrder(namespaces.map(function(ns){ return function(){ return hitNS(ns)(); }; }))
+    .then(function(values){
+      var total = values[0], today = values[1];
+      setNum(totalEl, total);
+      setNum(todayEl, today);
+    })
+    .catch(function(err){
+      console.warn('Counter failed:', err);
+      showDebug('표시가 안 보이면 네트워크/차단(AdBlock)/CSP 문제일 수 있어요.');
+    });
+})();
 </script>
 
 </body>
