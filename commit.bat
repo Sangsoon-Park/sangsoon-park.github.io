@@ -1,9 +1,9 @@
 
 
 @echo off
-cd /d "C:\Users\alive\Desktop\ê¸°íƒ€\github\sangsoon-park.github.io"
+cd /d "C:\Users\alive\Desktop\±âÅ¸\github\sangsoon-park.github.io"
 
-:: í˜„ì¬ ì‹œê°„ì„ yyyyMMddHHmmss í˜•ì‹ìœ¼ë¡œ ë§Œë“¤ê¸°
+:: ÇöÀç ½Ã°£À» yyyyMMddHHmmss Çü½ÄÀ¸·Î ¸¸µé±â
 setlocal enabledelayedexpansion
 set year=%date:~0,4%
 set month=%date:~5,2%
@@ -18,5 +18,6 @@ git add .
 git commit -m "%commitmsg%"
 git push
 
-echo ì»¤ë°‹ ì™„ë£Œ: %commitmsg%
+echo Ä¿¹Ô ¿Ï·á: %commitmsg%
 pause
+
