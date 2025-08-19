@@ -1,4 +1,3 @@
-<!-- chat.fallback.html -->
 <!doctype html>
 <html lang="ko">
 <head>
@@ -26,7 +25,7 @@
     <div><strong>GPT와 대화하기</strong> <span class="meta">— 스트리밍 폴백 데모</span></div>
   </header>
   <main>
-    <div class="sys">※ 이 페이지는 `/api/chat`(POST)로 요청합니다. GET 호출 시 <em>Method Not Allowed</em>가 뜨는 것이 정상이에요.</div>
+    <div class="sys">※ 이 페이지는 <code>/api/chat</code>(POST)로 요청합니다. GET은 버전 확인 JSON을 돌려주는 게 정상이에요.</div>
 
     <div id="log"></div>
 
@@ -46,7 +45,7 @@
     const log = document.getElementById('log');
     const btn = document.getElementById('send');
 
-    let model = 'gpt-4o-mini'; // 서버 기본과 맞춰둠
+    let model = 'gpt-4o-mini';
     document.getElementById('modelLabel').textContent = model;
 
     function addBubble(text, who) {
@@ -57,16 +56,56 @@
       div.scrollIntoView({ behavior: 'smooth', block: 'end' });
       return div;
     }
+    function appendText(div, text) { div.textContent += text; }
 
-    function appendText(div, text) {
-      div.textContent += text;
+    // ── 공통 SSE 파서: Responses API & Chat Completions 둘 다 지원 ───────────
+    function handleSSEChunk(part, aDiv) {
+      // part: 한 이벤트 블록 (여러 줄)
+      const lines = part.split('\n').map(l => l.trim());
+      const dataLine = lines.find(l => l.startsWith('data:'));
+      if (!dataLine) return { done: false };
+
+      const data = dataLine.slice(5).trim();
+      if (!data) return { done: false };
+
+      // Chat Completions의 [DONE] 종료 신호
+      if (data === '[DONE]') return { done: true };
+
+      try {
+        const json = JSON.parse(data);
+
+        // 1) Responses API 스트림
+        // 주요 타입:
+        // - response.output_text.delta   { type, delta }
+        // - response.output_text.done
+        // - response.completed
+        // - response.refusal.delta (선택 처리)
+        if (json.type && typeof json.type === 'string') {
+          if (json.type === 'response.output_text.delta' && typeof json.delta === 'string') {
+            appendText(aDiv, json.delta);
+          } else if (json.type === 'response.refusal.delta' && typeof json.delta === 'string') {
+            // 필요 시 거부 이유를 붙이고 싶다면 주석 해제
+            // appendText(aDiv, `\n[refusal] ${json.delta}`);
+          } else if (json.type === 'response.completed' || json.type === 'response.output_text.done') {
+            return { done: true };
+          }
+          return { done: false };
+        }
+
+        // 2) Chat Completions 스트림(delta.content)
+        const delta = json?.choices?.[0]?.delta;
+        if (delta?.content) appendText(aDiv, delta.content);
+
+        // Chat Completions은 최종 [DONE] 이벤트로 종료되므로 여기선 done=false
+        return { done: false };
+      } catch {
+        // 하트비트 등 비-JSON은 무시
+        return { done: false };
+      }
     }
 
     async function streamChat(userText) {
-      // 사용자가 입력한 메시지 출력
       addBubble(userText, 'user');
-
-      // 어시스턴트 말풍선(스트리밍으로 채워짐)
       const aDiv = addBubble('', 'assistant');
 
       btn.disabled = true; input.disabled = true;
@@ -74,6 +113,7 @@
       const body = {
         model,
         stream: true,
+        // 서버는 messages를 받아 자동으로 transcript로 변환합니다.
         messages: [{ role: 'user', content: userText }]
       };
 
@@ -91,19 +131,19 @@
       }
 
       if (!resp.ok) {
-        const text = await resp.text().catch(()=>'');
+        const text = await resp.text().catch(()=> '');
         appendText(aDiv, `서버 오류 ${resp.status}: ${text || '응답 본문 없음'}`);
         btn.disabled = false; input.disabled = false;
         return;
       }
 
-      // OpenAI Chat Completions의 SSE를 파싱
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let stop = false;
 
       try {
-        while (true) {
+        while (!stop) {
           const { value, done } = await reader.read();
           if (done) break;
 
@@ -114,24 +154,8 @@
           buffer = parts.pop() || '';
 
           for (const part of parts) {
-            const lines = part.split('\n').map(l => l.trim());
-            const dataLine = lines.find(l => l.startsWith('data:'));
-            if (!dataLine) continue;
-
-            const data = dataLine.slice(5).trim();
-            if (data === '[DONE]') {
-              break;
-            }
-
-            try {
-              const json = JSON.parse(data);
-              const delta = json?.choices?.[0]?.delta;
-              if (delta?.content) {
-                appendText(aDiv, delta.content);
-              }
-            } catch (err) {
-              // 파싱 실패는 건너뜀 (하트비트 등)
-            }
+            const { done: partDone } = handleSSEChunk(part, aDiv);
+            if (partDone) { stop = true; break; }
           }
         }
       } catch (err) {
