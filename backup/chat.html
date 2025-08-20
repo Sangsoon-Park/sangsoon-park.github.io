@@ -2,204 +2,167 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chat with GPT — Sangsoon Park</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GPT와 대화하기</title>
   <style>
-    :root{
-      --bg:#0b1020; --card:#0f1530; --border:#26304a; --muted:#9aa7bd; --text:#e5eefc; --btn:#121a38; --btnHover:#182148;
-    }
-    *{box-sizing:border-box}
-    body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Pretendard,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","맑은 고딕",sans-serif; color:var(--text); background:radial-gradient(1200px 800px at 80% -10%, rgba(56,189,248,0.15), transparent), var(--bg);}
-    .wrap{max-width:900px; margin:0 auto; padding:24px}
-    a.back{display:inline-flex; align-items:center; gap:8px; text-decoration:none; color:var(--muted)}
-    .card{margin-top:16px; border:1px solid var(--border); border-radius:16px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); overflow:hidden}
-    header{padding:18px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between}
-    header h1{font-size:18px; margin:0}
-    #model{background:transparent; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:6px 10px}
-    .chat{height:62vh; overflow:auto; padding:18px 20px; display:flex; flex-direction:column; gap:14px}
-    .msg{max-width:80%; padding:12px 14px; border-radius:14px; line-height:1.6; border:1px solid var(--border); white-space:pre-wrap}
-    .you{align-self:flex-end; background:#1e2a55}
-    .ai{align-self:flex-start; background:#121a38}
-    .sys{align-self:center; font-size:12px; color:var(--muted); border:none}
-    .input{display:flex; gap:10px; padding:14px; border-top:1px solid var(--border)}
-    .input textarea{flex:1; resize:vertical; min-height:56px; max-height:220px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1635; color:var(--text)}
-    .input button{padding:0 16px; border-radius:12px; border:1px solid var(--border); background:#0f1838; color:var(--text); font-weight:600; cursor:pointer}
-    .input button:disabled{opacity:.6; cursor:not-allowed}
-    footer{font-size:12px; color:var(--muted); text-align:center; padding:16px}
+    :root { font-family: system-ui, sans-serif; line-height: 1.4; }
+    body { margin: 0; background:#0b0c10; color:#eef1f5; }
+    header { padding: 16px 24px; border-bottom: 1px solid #1f2330; }
+    main { max-width: 820px; margin: 0 auto; padding: 24px; }
+    .bar { display:flex; gap:10px; }
+    input[type="text"] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #2a3042; background:#111420; color:#eef1f5; }
+    button { padding: 12px 16px; border-radius: 8px; border: 0; background:#5562ea; color:#fff; cursor:pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .msg { padding: 12px 14px; border-radius: 10px; margin: 12px 0; white-space: pre-wrap; }
+    .user { background:#1a2033; }
+    .assistant { background:#111826; }
+    .sys { font-size: 12px; color: #a9b1c4; margin-bottom: 6px; }
+    .meta { font-size: 12px; color: #9aa3b2; margin-top: 4px; }
+    .err { color:#ffb4b4 }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <a class="back" href="./index.html">← 홈으로</a>
-    <div class="card">
-      <header>
-        <h1>GPT와 대화하기</h1>
-        <div>
-          <label for="model" style="margin-right:6px; color:var(--muted)">모델</label>
-          <select id="model">
-            <option value="gpt-4o-mini" selected>gpt-4o-mini</option>
-            <option value="gpt-4o">gpt-4o</option>
-          </select>
-        </div>
-      </header>
-      <div id="chat" class="chat">
-        <div class="msg sys">Sangsoon의 개인 GPT 창입니다. 대화는 브라우저에서만 보관돼요.</div>
-      </div>
-      <div class="input">
-        <textarea id="prompt" placeholder="무엇을 도와드릴까요? Shift+Enter 줄바꿈, Enter 전송"></textarea>
-        <button id="send">전송</button>
-      </div>
+  <header>
+    <div><strong>GPT와 대화하기</strong> </div>
+  </header>
+  <main>
+    <div class="sys">
+      ※ 이 페이지는 <code>/api/chat</code>으로 <b>POST</b> 요청을 보냅니다.
+      (브라우저로 <code>/api/chat</code>을 직접 열면 GET 405가 뜨는 게 정상입니다.)
     </div>
-    <footer>© <span id="y"></span> Sangsoon Park — sangsoon-park.github.io</footer>
-  </div>
+
+    <div id="log"></div>
+
+    <form id="f" class="bar">
+      <input id="q" type="text" placeholder="메시지를 입력하세요…" autocomplete="off" />
+      <button id="send" type="submit">보내기</button>
+    </form>
+
+    <div class="meta" style="margin-top:12px">
+      모델: <code id="modelLabel">gpt-4o-mini</code> · 스트리밍: <code>true</code> · 엔드포인트: <code id="ep"></code>
+    </div>
+  </main>
+
   <script>
-    // Year
-    document.getElementById('y').textContent = new Date().getFullYear();
+    // ★ 절대경로 사용: 로컬 파일로 열어도 Vercel API로 직접 POST합니다.
+    const ENDPOINT = 'https://my-chat-five-kappa.vercel.app/api/chat';
 
-    // Elements
-    const chat = document.getElementById('chat');
-    const promptEl = document.getElementById('prompt');
+    const form = document.getElementById('f');
+    const input = document.getElementById('q');
+    const log = document.getElementById('log');
     const btn = document.getElementById('send');
-    const modelSel = document.getElementById('model');
 
-    // Local history
-    const STORAGE_KEY = 'ssp-chat-history-v1';
-    function append(role, content){
+    const model = 'gpt-4o-mini';
+    document.getElementById('modelLabel').textContent = model;
+    document.getElementById('ep').textContent = ENDPOINT;
+
+    function addBubble(text, who) {
       const div = document.createElement('div');
-      div.className = 'msg ' + (role === 'user' ? 'you' : (role === 'assistant' ? 'ai' : 'sys'));
-      div.textContent = content;
-      chat.appendChild(div);
-      chat.scrollTop = chat.scrollHeight;
+      div.className = `msg ${who}`;
+      div.textContent = text;
+      log.appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      return div;
     }
-    function persist(role, content){
-      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      history.push({ role, content });
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
-    }
-    function loadHistory(){
-      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      for (const m of history) append(m.role, m.content);
-      return history;
-    }
-    let messages = loadHistory();
+    function appendText(div, text) { div.textContent += text; }
 
-    // Normalize messages for API
-    function sanitizeMessages(msgs){
-      const allowed = new Set(['system','user','assistant']);
-      const mapped = msgs.map(m => {
-        let role = (m.role || 'user').toLowerCase();
-        if (role === 'sys') role = 'system';
-        if (!allowed.has(role)) role = 'user';
-        const content = (typeof m.content === 'string' ? m.content : String(m.content || '')).trim();
-        return content ? { role, content } : null;
-      }).filter(Boolean);
-      return mapped.slice(-16);
-    }
+    // SSE 블록 파서 (Responses API & Chat Completions 둘 다 처리)
+    function handleSSEChunk(part, aDiv) {
+      const lines = part.split('\n').map(l => l.trim());
+      const dataLines = lines.filter(l => l.startsWith('data:'));
+      for (const dl of dataLines) {
+        const data = dl.slice(5).trim();
+        if (!data) continue;
+        if (data === '[DONE]') return { done: true }; // chat/completions 종료 신호
+        try {
+          const json = JSON.parse(data);
 
-    // Enter to send
-    promptEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        btn.click();
+          // Responses API
+          if (json.type) {
+            if (json.type === 'response.output_text.delta' && typeof json.delta === 'string') {
+              appendText(aDiv, json.delta);
+            } else if (json.type === 'response.completed' || json.type === 'response.output_text.done') {
+              return { done: true };
+            }
+            continue;
+          }
+
+          // Chat Completions
+          const delta = json?.choices?.[0]?.delta;
+          if (delta?.content) appendText(aDiv, delta.content);
+        } catch (_) { /* JSON이 아니면 무시 */ }
       }
-    });
+      return { done: false };
+    }
 
-    // SSE stream reader (OpenAI Responses API)
-    async function streamToElement(resp, el){
-      const ctype = resp.headers.get('Content-Type') || '';
+    async function streamChat(userText) {
+      addBubble(userText, 'user');
+      const aDiv = addBubble('', 'assistant');
+
+      btn.disabled = true; input.disabled = true;
+
+      const body = {
+        model,
+        stream: true,
+        messages: [{ role: 'user', content: userText }]
+      };
+
+      let resp;
+      try {
+        resp = await fetch(ENDPOINT, {
+          method: 'POST',
+          mode: 'cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      } catch (e) {
+        aDiv.classList.add('err');
+        appendText(aDiv, `요청 실패: ${e.message}`);
+        btn.disabled = false; input.disabled = false; input.focus();
+        return;
+      }
+
+      if (!resp.ok) {
+        const text = await resp.text().catch(()=> '');
+        aDiv.classList.add('err');
+        appendText(aDiv, `서버 오류 ${resp.status}: ${text || '응답 본문 없음'}\n(※ 브라우저가 GET으로 보내면 405가 납니다. 이 화면은 POST로 전송합니다.)`);
+        btn.disabled = false; input.disabled = false; input.focus();
+        return;
+      }
+
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      let buffer = '', stop = false;
 
-      function handleBlock(block){
-        let eventType = null;
-        const lines = block.split('\n');
-        for (const raw of lines){
-          const line = raw.trim();
-          if (!line) continue;
-          if (line.startsWith('event:')) { eventType = line.slice(6).trim(); continue; }
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (payload === '[DONE]') return 'DONE';
+      try {
+        while (!stop) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
 
-          try {
-            const obj = JSON.parse(payload);
-            const t = obj.type || eventType || '';
-            if (t === 'response.output_text.delta' && typeof obj.delta === 'string') {
-              el.textContent += obj.delta;
-              chat.scrollTop = chat.scrollHeight;
-            } else if ((t === 'error' || t === 'response.error') && obj.error && obj.error.message) {
-              el.textContent = '오류: ' + obj.error.message;
-            } else if (obj.text && typeof obj.text === 'string') {
-              el.textContent += obj.text;
-            }
-          } catch {
-            // Not JSON, append raw
-            el.textContent += payload;
-            chat.scrollTop = chat.scrollHeight;
+          // SSE는 빈 줄(\n\n)로 이벤트 구분
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+          for (const part of parts) {
+            const { done: partDone } = handleSSEChunk(part, aDiv);
+            if (partDone) { stop = true; break; }
           }
         }
-        return null;
-      }
-
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-
-        if (ctype.includes('text/event-stream')){
-          buffer += chunk;
-          let idx;
-          while ((idx = buffer.indexOf('\n\n')) >= 0){
-            const block = buffer.slice(0, idx);
-            buffer = buffer.slice(idx + 2);
-            const doneFlag = handleBlock(block);
-            if (doneFlag === 'DONE') return;
-          }
-        } else {
-          el.textContent += chunk;
-          chat.scrollTop = chat.scrollHeight;
-        }
+      } catch (err) {
+        aDiv.classList.add('err');
+        appendText(aDiv, `\n(스트리밍 중단: ${err.message})`);
+      } finally {
+        btn.disabled = false; input.disabled = false; input.focus();
       }
     }
 
-    // Send
-    btn.addEventListener('click', async () => {
-      const content = promptEl.value.trim();
-      if (!content) return;
-      promptEl.value = '';
-      btn.disabled = true;
-
-      append('user', content);
-      persist('user', content);
-      messages.push({ role:'user', content });
-
-      const aiDiv = document.createElement('div');
-      aiDiv.className = 'msg ai';
-      aiDiv.textContent = '...';
-      chat.appendChild(aiDiv);
-      chat.scrollTop = chat.scrollHeight;
-
-      try{
-        const resp = await fetch('https://my-chat-five-kappa.vercel.app/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: modelSel.value, messages: sanitizeMessages(messages) })
-        });
-        if (!resp.ok){
-          const t = await resp.text().catch(()=>'');
-          aiDiv.textContent = '오류 ' + resp.status + (t ? (': ' + t) : '');
-        } else {
-          aiDiv.textContent = '';
-          await streamToElement(resp, aiDiv);
-          persist('assistant', aiDiv.textContent);
-          messages.push({ role:'assistant', content: aiDiv.textContent });
-        }
-      }catch(e){
-        aiDiv.textContent = '네트워크 오류: ' + e.message;
-      }finally{
-        btn.disabled = false;
-      }
+    // 폼 기본 GET 전송 방지 + POST로 호출
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      streamChat(text);
     });
   </script>
 </body>

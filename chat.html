@@ -5,66 +5,157 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GPT와 대화하기</title>
   <style>
-    :root { font-family: system-ui, sans-serif; line-height: 1.4; }
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', sans-serif; line-height: 1.45; }
+    * { box-sizing: border-box; }
     body { margin: 0; background:#0b0c10; color:#eef1f5; }
-    header { padding: 16px 24px; border-bottom: 1px solid #1f2330; }
-    main { max-width: 820px; margin: 0 auto; padding: 24px; }
-    .bar { display:flex; gap:10px; }
-    input[type="text"] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #2a3042; background:#111420; color:#eef1f5; }
-    button { padding: 12px 16px; border-radius: 8px; border: 0; background:#5562ea; color:#fff; cursor:pointer; }
-    button:disabled { opacity: .6; cursor: not-allowed; }
-    .msg { padding: 12px 14px; border-radius: 10px; margin: 12px 0; white-space: pre-wrap; }
-    .user { background:#1a2033; }
-    .assistant { background:#111826; }
-    .sys { font-size: 12px; color: #a9b1c4; margin-bottom: 6px; }
-    .meta { font-size: 12px; color: #9aa3b2; margin-top: 4px; }
-    .err { color:#ffb4b4 }
+    header { padding: 16px 24px; border-bottom: 1px solid #1f2330; position: sticky; top: 0; background:#0b0c10d9; backdrop-filter: blur(6px); z-index: 10;}
+    main { max-width: 900px; margin: 0 auto; padding: 20px; }
+    .row { display:flex; gap:10px; align-items: center; flex-wrap: wrap; }
+    .grow { flex: 1 1 auto; }
+    .pill { padding: 6px 10px; border-radius: 999px; background:#111420; border:1px solid #2a3042; color:#c8d0df; font-size: 12px; }
+    .select, .input, .slider { background:#111420; color:#eef1f5; border:1px solid #2a3042; border-radius: 8px; padding: 10px; }
+    .select { min-width: 170px; }
+    .slider { padding: 8px; }
+    .muted { color:#9aa3b2; font-size: 12px; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; color:#a9b1c4; }
+    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap: wrap; margin-top:10px; }
+    .panel { margin-top: 10px; padding: 12px; border-radius: 12px; background:#0e111a; border:1px solid #1f2330; }
+    details > summary { cursor: pointer; user-select: none; }
+    textarea { width: 100%; min-height: 90px; resize: vertical; background:#0b0e16; color:#eef1f5; border:1px solid #2a3042; border-radius: 8px; padding: 10px; }
+    .chat { display:flex; flex-direction: column; gap: 12px; margin: 12px 0 16px; }
+    .bubble { max-width: 82%; padding: 12px 14px; border-radius: 16px; white-space: pre-wrap; word-break: break-word; position: relative; }
+    .user   { align-self: flex-end; background:#1a2033; border:1px solid #2a3042; }
+    .assistant { align-self: flex-start; background:#111826; border:1px solid #1f2330; }
+    .sysmsg { align-self: center; background:#0b0e16; border:1px dashed #2a3042; color:#a9b1c4; font-size: 12px; }
+    .meta { font-size: 12px; color:#9aa3b2; }
+    .err { color:#ffb4b4; }
+    form.compose { display:flex; gap:10px; margin-top: 8px; }
+    form.compose input[type="text"] { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid #2a3042; background:#111420; color:#eef1f5; }
+    button { padding: 12px 16px; border-radius: 10px; border: 0; background:#5562ea; color:#fff; cursor:pointer; }
+    button.secondary { background:#1f2330; color:#d7def0; border:1px solid #2a3042; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .spinner { width: 14px; height: 14px; border:2px solid #93a1ff; border-top-color: transparent; border-radius: 50%; display:inline-block; vertical-align: -2px; animation: spin 0.9s linear infinite; margin-right:6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .footer { margin-top: 10px; display:flex; gap:10px; justify-content: space-between; align-items: center; }
+    a { color:#9cc0ff; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   </style>
 </head>
 <body>
   <header>
-    <div><strong>GPT와 대화하기</strong> <span class="meta">— Edge + SSE</span></div>
-  </header>
-  <main>
-    <div class="sys">
-      ※ 이 페이지는 <code>/api/chat</code>으로 <b>POST</b> 요청을 보냅니다.
-      (브라우저로 <code>/api/chat</code>을 직접 열면 GET 405가 뜨는 게 정상입니다.)
+    <div class="row">
+      <div><strong>GPT와 대화하기</strong></div>
     </div>
 
-    <div id="log"></div>
+    <!-- 상단 도구막대: 모델/온도/히스토리 제어 -->
+    <div class="toolbar">
+      <label class="muted">모델
+        <select id="model" class="select">
+          <option value="gpt-4o-mini">gpt-4o-mini (빠르고 저렴)</option>
+          <option value="gpt-4o">gpt-4o (정확도↑)</option>
+        </select>
+      </label>
 
-    <form id="f" class="bar">
+      <label class="muted">온도
+        <input id="temp" type="range" min="0" max="1" step="0.1" class="slider" style="width:160px" />
+        <span id="tempVal" class="kbd">0.7</span>
+      </label>
+
+      <button id="clear" class="secondary" title="대화 히스토리를 초기화">히스토리 초기화</button>
+      <button id="export" class="secondary" title="JSON으로 저장">내보내기(JSON)</button>
+      <input id="importFile" type="file" accept="application/json" hidden />
+      <button id="import" class="secondary" title="JSON에서 불러오기">불러오기(JSON)</button>
+    </div>
+
+    <!-- 시스템 프롬프트(프로필) 설정 -->
+    <details id="sysPanel" class="panel">
+      <summary><strong>시스템 프롬프트(프로필)</strong> <span class="muted">— 백엔드로 함께 전송됩니다.</span></summary>
+      <p class="muted" style="margin-top:6px">
+        * 여기의 텍스트는 <code>messages</code> 배열의 <code>system</code>으로 포함되어, 모델이 당신의 맥락을 이해하도록 돕습니다.
+        필요시 수정하세요.
+      </p>
+      <textarea id="systemPrompt"></textarea>
+    </details>
+  </header>
+
+  <main>
+    <div id="chat" class="chat"></div>
+
+    <!-- 입력창 -->
+    <form id="composer" class="compose">
       <input id="q" type="text" placeholder="메시지를 입력하세요…" autocomplete="off" />
       <button id="send" type="submit">보내기</button>
+      <button id="stop" type="button" class="secondary" disabled>중지</button>
     </form>
 
-    <div class="meta" style="margin-top:12px">
-      모델: <code id="modelLabel">gpt-4o-mini</code> · 스트리밍: <code>true</code> · 엔드포인트: <code id="ep"></code>
-    </div>
+
   </main>
 
   <script>
-    // ★ 절대경로 사용: 로컬 파일로 열어도 Vercel API로 직접 POST합니다.
+    // ─────────────────────────────────────────────────────────────
+    // ⚙️ 환경설정
+    // 절대경로 사용: 로컬 파일로 열어도 Vercel API로 직접 POST합니다.
     const ENDPOINT = 'https://my-chat-five-kappa.vercel.app/api/chat';
 
-    const form = document.getElementById('f');
-    const input = document.getElementById('q');
-    const log = document.getElementById('log');
-    const btn = document.getElementById('send');
+    // 로컬 스토리지 키
+    const LS_HISTORY = 'chat.history.v1';
+    const LS_MODEL   = 'chat.model.v1';
+    const LS_TEMP    = 'chat.temp.v1';
+    const LS_SYSTEM  = 'chat.system.v1';
 
-    const model = 'gpt-4o-mini';
-    document.getElementById('modelLabel').textContent = model;
-    document.getElementById('ep').textContent = ENDPOINT;
+    // DOM 참조
+    const chatEl  = document.getElementById('chat');
+    const form    = document.getElementById('composer');
+    const input   = document.getElementById('q');
+    const btnSend = document.getElementById('send');
+    const btnStop = document.getElementById('stop');
+    const btnClear= document.getElementById('clear');
+    const btnExport= document.getElementById('export');
+    const btnImport= document.getElementById('import');
+    const fileImport= document.getElementById('importFile');
+
+    const modelSel= document.getElementById('model');
+    const tempRange= document.getElementById('temp');
+    const tempVal = document.getElementById('tempVal');
+    const sysTA   = document.getElementById('systemPrompt');
+
+    // 기본 시스템 프롬프트 (필요시 자유롭게 수정)
+    const DEFAULT_SYSTEM = [
+      '문체는 친근하지만 업무 맥락에서는 간결하고 구조화해 주세요.',
+      '사소한 질문에는 짧게, 복잡한 주제는 단계적으로 설명해 주세요.',
+      '필요 시 사용자 맥락(조직/역할/기술스택)을 전제로 예시를 들어주세요.'
+    ].join('\n');
+
+    // 상태
+    let history = []; // [{role:'user'|'assistant'|'system', content:string}, ...]
+    let controller = null; // AbortController for streaming
+
+    // ─────────────────────────────────────────────────────────────
+    // 🧠 유틸
+    function saveLS(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+    function loadLS(key, fallback) {
+      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+      catch { return fallback; }
+    }
 
     function addBubble(text, who) {
       const div = document.createElement('div');
-      div.className = `msg ${who}`;
+      div.className = 'bubble ' + who;
       div.textContent = text;
-      log.appendChild(div);
+      chatEl.appendChild(div);
       div.scrollIntoView({ behavior: 'smooth', block: 'end' });
       return div;
     }
-    function appendText(div, text) { div.textContent += text; }
+    function appendText(div, text) {
+      div.textContent += text;
+      div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+    function renderFullHistory() {
+      chatEl.innerHTML = '';
+      const sys = loadLS(LS_SYSTEM, DEFAULT_SYSTEM);
+      if (sys) addBubble('시스템: ' + sys, 'sysmsg');
+      for (const m of history) addBubble(m.content, m.role === 'user' ? 'user' : 'assistant');
+    }
 
     // SSE 블록 파서 (Responses API & Chat Completions 둘 다 처리)
     function handleSSEChunk(part, aDiv) {
@@ -77,7 +168,7 @@
         try {
           const json = JSON.parse(data);
 
-          // Responses API
+          // Responses API (type 기반)
           if (json.type) {
             if (json.type === 'response.output_text.delta' && typeof json.delta === 'string') {
               appendText(aDiv, json.delta);
@@ -87,7 +178,7 @@
             continue;
           }
 
-          // Chat Completions
+          // Chat Completions (choices[0].delta.content)
           const delta = json?.choices?.[0]?.delta;
           if (delta?.content) appendText(aDiv, delta.content);
         } catch (_) { /* JSON이 아니면 무시 */ }
@@ -95,17 +186,40 @@
       return { done: false };
     }
 
+    function setBusy(busy) {
+      btnSend.disabled = busy;
+      input.disabled = busy;
+      btnStop.disabled = !busy;
+      if (busy) {
+        btnSend.dataset.prev = btnSend.textContent;
+        btnSend.innerHTML = '<span class="spinner"></span>생각중…';
+      } else {
+        btnSend.textContent = btnSend.dataset.prev || '보내기';
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ⏯️ 스트리밍 호출
     async function streamChat(userText) {
+      // UI 반영
       addBubble(userText, 'user');
+      history.push({ role: 'user', content: userText });
+      saveLS(LS_HISTORY, history);
       const aDiv = addBubble('', 'assistant');
 
-      btn.disabled = true; input.disabled = true;
+      setBusy(true);
+      controller = new AbortController();
 
-      const body = {
-        model,
-        stream: true,
-        messages: [{ role: 'user', content: userText }]
-      };
+      const model = modelSel.value;
+      const temperature = Number(tempRange.value);
+      const system = sysTA.value.trim();
+
+      // 백엔드와 호환되는 메시지 배열 구성
+      const messages = [];
+      if (system) messages.push({ role: 'system', content: system });
+      for (const m of history) messages.push(m);
+
+      const body = { model, stream: true, temperature, messages };
 
       let resp;
       try {
@@ -113,12 +227,13 @@
           method: 'POST',
           mode: 'cors',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+          body: JSON.stringify(body),
+          signal: controller.signal
         });
       } catch (e) {
         aDiv.classList.add('err');
         appendText(aDiv, `요청 실패: ${e.message}`);
-        btn.disabled = false; input.disabled = false; input.focus();
+        setBusy(false);
         return;
       }
 
@@ -126,7 +241,7 @@
         const text = await resp.text().catch(()=> '');
         aDiv.classList.add('err');
         appendText(aDiv, `서버 오류 ${resp.status}: ${text || '응답 본문 없음'}\n(※ 브라우저가 GET으로 보내면 405가 납니다. 이 화면은 POST로 전송합니다.)`);
-        btn.disabled = false; input.disabled = false; input.focus();
+        setBusy(false);
         return;
       }
 
@@ -149,14 +264,25 @@
           }
         }
       } catch (err) {
-        aDiv.classList.add('err');
-        appendText(aDiv, `\n(스트리밍 중단: ${err.message})`);
+        if (err.name === 'AbortError') {
+          aDiv.classList.add('err');
+          appendText(aDiv, '\n(전송 중단됨)');
+        } else {
+          aDiv.classList.add('err');
+          appendText(aDiv, `\n(스트리밍 중단: ${err.message})`);
+        }
       } finally {
-        btn.disabled = false; input.disabled = false; input.focus();
+        // 스트림이 끝난 시점의 어시스턴트 텍스트를 히스토리에 저장
+        const content = aDiv.textContent;
+        history.push({ role: 'assistant', content });
+        saveLS(LS_HISTORY, history);
+        setBusy(false);
+        controller = null;
       }
     }
 
-    // 폼 기본 GET 전송 방지 + POST로 호출
+    // ─────────────────────────────────────────────────────────────
+    // 🧭 이벤트 바인딩
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = input.value.trim();
@@ -164,6 +290,91 @@
       input.value = '';
       streamChat(text);
     });
+
+    btnStop.addEventListener('click', () => {
+      if (controller) controller.abort();
+    });
+
+    tempRange.addEventListener('input', () => {
+      tempVal.textContent = tempRange.value;
+      saveLS(LS_TEMP, tempRange.value);
+    });
+
+    modelSel.addEventListener('change', () => {
+      saveLS(LS_MODEL, modelSel.value);
+    });
+
+    btnClear.addEventListener('click', () => {
+      if (!confirm('대화 히스토리를 모두 삭제할까요?')) return;
+      history = [];
+      saveLS(LS_HISTORY, history);
+      renderFullHistory();
+    });
+
+    btnExport.addEventListener('click', () => {
+      const data = {
+        model: modelSel.value,
+        temperature: Number(tempRange.value),
+        system: sysTA.value,
+        history
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'chat-export-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    btnImport.addEventListener('click', () => fileImport.click());
+    fileImport.addEventListener('change', async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      try {
+        const txt = await f.text();
+        const data = JSON.parse(txt);
+        if (data.model) modelSel.value = data.model;
+        if (typeof data.temperature === 'number') tempRange.value = String(data.temperature);
+        if (typeof data.system === 'string') sysTA.value = data.system;
+        if (Array.isArray(data.history)) history = data.history;
+        saveLS(LS_MODEL, modelSel.value);
+        saveLS(LS_TEMP, tempRange.value);
+        saveLS(LS_SYSTEM, sysTA.value);
+        saveLS(LS_HISTORY, history);
+        tempVal.textContent = tempRange.value;
+        renderFullHistory();
+      } catch (err) {
+        alert('가져오기 실패: ' + err.message);
+      } finally {
+        fileImport.value = '';
+      }
+    });
+
+    // ─────────────────────────────────────────────────────────────
+    // 🚀 초기화
+	localStorage.removeItem(LS_SYSTEM);   // 시스템 프롬프트만 초기화, history는 유지 
+	
+    (function init(){
+      // 저장된 값 복원
+      const savedModel = loadLS(LS_MODEL, 'gpt-4o-mini');
+      const savedTemp  = loadLS(LS_TEMP, 0.7);
+      const savedSys   = loadLS(LS_SYSTEM, DEFAULT_SYSTEM);
+      history = loadLS(LS_HISTORY, []);
+
+      modelSel.value = savedModel;
+      tempRange.value = savedTemp;
+      tempVal.textContent = savedTemp;
+      sysTA.value = savedSys;
+
+      // 기존 대화 렌더
+      renderFullHistory();
+
+      // 첫 방문 안내
+      if (!history.length) {
+        addBubble('안녕하세요! 모델/온도/시스템 프롬프트를 설정하고 메시지를 보내 보세요.','assistant');
+      }
+    })();
   </script>
 </body>
 </html>
