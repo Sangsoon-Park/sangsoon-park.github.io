@@ -1,88 +1,363 @@
 
+<!-- 
+  ============================================
+  Sangsoon Park 포트폴리오 웹사이트
+  ============================================
+  - 개인 소개 페이지
+  - 반응형 디자인 지원
+  - Google Analytics 추적 가능
+  ============================================
+-->
 <!doctype html>
 <html lang="ko">
 <head>
+  <!-- 
+    ============================================
+    문서 메타데이터 설정
+    ============================================
+  -->
+  <!-- 문자 인코딩을 UTF-8로 설정하여 한글 및 특수문자 표시 -->
   <meta charset="utf-8" />
+  <!-- 모바일 반응형 디자인 설정: 디바이스 너비에 맞게 스케일 조정 -->
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- 브라우저 탭에 표시될 페이지 제목 -->
   <title>Sangsoon Park</title>
   
-  <!-- Google tag (gtag.js) -->
+  <!-- 
+    ============================================
+    Google Analytics 추적 코드
+    ============================================
+    Google Tag Manager를 통해 웹사이트 방문자 통계 수집
+    추적 ID: G-R8SNEDKKBT
+  -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-R8SNEDKKBT"></script>
+  <!-- Google Analytics 데이터 레이어 초기화 및 설정 -->
   <script>
+    // 데이터 레이어 배열 초기화 (기존 데이터가 있다면 그대로 유지)
     window.dataLayer = window.dataLayer || [];
+    // gtag 함수 정의: Google Analytics 추적 이벤트 전송
     function gtag(){dataLayer.push(arguments);}
+    // 현재 날짜/시간으로 Google Analytics 타임스탬프 설정
     gtag('js', new Date());
 
+    // Google Analytics 속성 설정 (추적 ID와 함께 구성)
     gtag('config', 'G-R8SNEDKKBT');
   </script>  
   
+  <!-- 
+    ============================================
+    SEO 메타 데이터 및 Open Graph 설정
+    ============================================
+    - 검색 엔진 최적화 (SEO)
+    - SNS 공유 시 표시될 정보
+  -->
+  <!-- 페이지 설명: 검색 엔진과 SNS 미리보기에 표시됨 -->
   <meta name="description" content="박상순 · NICE평가정보 본부장 · 러닝 & 수영을 좋아합니다.">
+  <!-- Open Graph 프로토콜: Facebook, Kakao 등 SNS 공유 시 표시될 제목 -->
   <meta property="og:title" content="Sangsoon Park">
+  <!-- Open Graph: SNS 공유 시 표시될 설명 -->
   <meta property="og:description" content="NICE평가정보 본부장 · 러닝 & 수영">
+  <!-- Open Graph: 콘텐츠 타입 지정 (website = 웹사이트) -->
   <meta property="og:type" content="website">
+  <!-- Open Graph: 페이지의 정규 URL -->
   <meta property="og:url" content="https://sangsoon.com">
   <style>
+    /* ================================================
+       CSS 변수 및 색상 테마 정의
+       ================================================
+       다크모드 기반의 일관된 색상 스키마 사용
+    */
     :root {
+      /* 배경색: 매우 어두운 파랑 */
       --bg: #0f172a;
+      /* 텍스트 색: 밝은 회색 */
       --text: #e5e7eb;
+      /* 보조 텍스트 색: 중간 정도의 회색 */
       --muted: #94a3b8;
+      /* 버튼 기본 배경색: 어두운 회색 */
       --btn: #1f2937;
+      /* 버튼 호버 상태 배경색: 더 밝은 회색 */
       --btnHover: #374151;
+      /* 테두리 색: 반투명 회색 */
       --border: rgba(148,163,184,0.25);
     }
+    
+    /* ================================================
+       전체 요소에 적용되는 기본 스타일
+    ================================================ */
+    /* 모든 요소에 border-box 박스 모델 적용 (너비 계산 간편) */
     * { box-sizing: border-box; }
+    
+    /* ================================================
+       HTML과 Body 기본 스타일
+    ================================================ */
     html, body {
+      /* 전체 높이를 100% 설정하여 페이지가 전체 화면을 차지하도록 함 */
       height: 100%;
+      /* 기본 마진 제거 */
       margin: 0;
+      /* 시스템 기본 폰트를 우선으로 사용 (빠른 로딩) */
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "맑은 고딕", sans-serif;
+      /* 텍스트 색 적용 */
       color: var(--text);
+      /* 
+        배경: 다중 레이어 구성
+        - 방사형 그래디언트: 우측 상단에 파란색 광선 효과
+        - 기본 배경색: 어두운 파랑
+      */
       background: radial-gradient(1200px 800px at 80% -10%, rgba(56,189,248,0.15), transparent) , var(--bg);
     }
-    .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 40px 16px; }
+    
+    /* ================================================
+       메인 컨테이너 (wrap 클래스)
+    ================================================ */
+    /* 페이지 전체를 감싸는 컨테이너 */
+    .wrap { 
+      /* 최소 높이를 100% (전체 뷰포트 높이) 설정 */
+      min-height: 100%; 
+      /* Flexbox 레이아웃 사용 */
+      display: flex; 
+      /* 수직 중앙 정렬 */
+      align-items: center; 
+      /* 수평 중앙 정렬 */
+      justify-content: center; 
+      /* 상하좌우 패딩: 모바일에서도 여유 있는 레이아웃 */
+      padding: 40px 16px; 
+    }
+    
+    /* ================================================
+       카드 컴포넌트 (card 클래스)
+    ================================================ */
+    /* 모든 콘텐츠를 담는 카드 요소 */
     .card {
-      width: 100%; max-width: 760px;
+      /* 기본 너비 100%, 최대 너비 760px (가독성 최적화) */
+      width: 100%; 
+      max-width: 760px;
+      /* 
+        배경: 반투명 화이트의 미세한 그래디언트
+        위쪽이 약간 밝고 아래쪽으로 갈수록 더 투명함
+      */
       background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.0));
+      /* 카드의 테두리: 반투명 회색 */
       border: 1px solid var(--border);
-      border-radius: 20px; padding: 32px; backdrop-filter: blur(6px);
+      /* 둥근 모서리: 20px */
+      border-radius: 20px; 
+      /* 내부 여백: 32px */
+      padding: 32px; 
+      /* 
+        backdrop-filter 효과: 배경을 흐릿하게 처리
+        모던 브라우저에서 글라스모피즘 효과 구현
+      */
+      backdrop-filter: blur(6px);
+      /* 그림자 효과: 카드에 깊이감 추가 */
       box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
-    .name { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0 0 8px 0; letter-spacing: -0.02em; }
-    .subtitle { font-size: clamp(14px, 2.4vw, 18px); color: var(--muted); margin-bottom: 20px; }
-    .bio { font-size: 16px; line-height: 1.7; color: #d1d5db; margin-bottom: 28px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-    .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 12px 14px; background: var(--btn); color: var(--text);
-      border: 1px solid var(--border); border-radius: 12px; text-decoration: none;
-      transition: all .2s ease; font-weight: 600;
+    
+    /* ================================================
+       제목 스타일 (name 클래스)
+    ================================================ */
+    /* "Sangsoon Park" 제목 */
+    .name { 
+      /* 
+        반응형 폰트 크기: 
+        - 모바일: 28px
+        - 데스크톱: 40px
+      */
+      font-size: clamp(28px, 5vw, 40px); 
+      /* 줄 높이: 1.1 (제목용 조밀한 높이) */
+      line-height: 1.1; 
+      /* 여백 설정: 아래 여백만 8px */
+      margin: 0 0 8px 0; 
+      /* 자간 조정: -0.02em (약간 좁혀서 현대적인 느낌) */
+      letter-spacing: -0.02em; 
     }
-    .btn:hover { background: var(--btnHover); transform: translateY(-1px); }
-    footer { margin-top: 28px; font-size: 12px; color: var(--muted); text-align: center; }
+    
+    /* ================================================
+       부제목 스타일 (subtitle 클래스)
+    ================================================ */
+    /* 직급 및 설명 텍스트 */
+    .subtitle { 
+      /* 반응형 폰트 크기 */
+      font-size: clamp(14px, 2.4vw, 18px); 
+      /* 보조 텍스트 색상 적용 */
+      color: var(--muted); 
+      /* 아래 여백: 20px */
+      margin-bottom: 20px; 
+    }
+    
+    /* ================================================
+       본문 텍스트 스타일 (bio 클래스)
+    ================================================ */
+    /* 소개 글귀 */
+    .bio { 
+      /* 기본 폰트 크기 */
+      font-size: 16px; 
+      /* 줄 높이: 1.7 (본문용 충분한 높이로 가독성 향상) */
+      line-height: 1.7; 
+      /* 약간 밝은 회색 (완전한 흰색보다 부드러운 느낌) */
+      color: #d1d5db; 
+      /* 아래 여백: 28px */
+      margin-bottom: 28px; 
+    }
+    
+    /* ================================================
+       버튼 그리드 레이아웃 (grid 클래스)
+    ================================================ */
+    /* 여러 버튼을 배열하는 그리드 컨테이너 */
+    .grid { 
+      /* CSS Grid 레이아웃 */
+      display: grid; 
+      /* 
+        반응형 그리드:
+        - 최소 180px, 최대 1fr의 컬럼
+        - 자동으로 행 추가
+        - 화면 크기에 따라 자동 조정
+      */
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+      /* 아이템 간 간격: 12px */
+      gap: 12px; 
+    }
+    
+    /* ================================================
+       버튼 스타일 (btn 클래스)
+    ================================================ */
+    /* 모든 클릭 가능한 버튼 */
+    .btn {
+      /* Flexbox를 사용한 가운데 정렬 */
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center; 
+      /* 아이콘과 텍스트 사이의 간격 */
+      gap: 8px;
+      /* 패딩: 수직 12px, 수평 14px */
+      padding: 12px 14px; 
+      /* 버튼 배경색 */
+      background: var(--btn); 
+      /* 텍스트 색 */
+      color: var(--text);
+      /* 테두리 스타일 */
+      border: 1px solid var(--border); 
+      /* 모서리 둥글기 */
+      border-radius: 12px; 
+      /* 하이퍼링크 밑줄 제거 */
+      text-decoration: none;
+      /* 부드러운 전환 효과 (200ms) */
+      transition: all .2s ease; 
+      /* 버튼 텍스트 굵기 */
+      font-weight: 600;
+    }
+    
+    /* ================================================
+       버튼 호버 상태 (마우스 올렸을 때)
+    ================================================ */
+    /* 마우스가 버튼 위에 있을 때의 스타일 */
+    .btn:hover { 
+      /* 배경색을 더 밝게 변경 */
+      background: var(--btnHover); 
+      /* 위쪽으로 1px 이동하는 애니메이션 (누르는 느낌) */
+      transform: translateY(-1px); 
+    }
+    
+    /* ================================================
+       페이지 하단 정보 (footer)
+    ================================================ */
+    /* 저작권 및 방문자 통계 표시 영역 */
+    footer { 
+      /* 위쪽 여백: 28px */
+      margin-top: 28px; 
+      /* 작은 폰트 크기 */
+      font-size: 12px; 
+      /* 보조 색상 (회색) */
+      color: var(--muted); 
+      /* 텍스트 중앙 정렬 */
+      text-align: center; 
+    }
   </style>
 </head>
 <body>
+  <!-- ================================================
+       페이지 메인 컨테이너
+       ==================================================
+       전체 콘텐츠를 감싸는 메인 섹션
+  ================================================ -->
   <main class="wrap">
+    <!-- ================================================
+         카드형 프로필 섹션
+         ==================================================
+         사용자의 이름, 소개, 링크 등을 포함하는 카드
+    ================================================ -->
     <section class="card">
+      <!-- 사용자 이름: "Sangsoon Park" -->
       <h1 class="name">Sangsoon Park</h1>
+      
+      <!-- 사용자 부제목: 직급 및 취미 정보 -->
       <div class="subtitle">Head of Solution Div. / Information Operation Dept. @ NICE평가정보 · Runner · Swimmer</div>
+      
+      <!-- 사용자 자기소개 단락 -->
       <p class="bio">
         안녕하세요, 박상순입니다. 디지털·AI·데이터 기반의 비즈니스 혁신을 이끌고 있으며,
         새벽 수영과 러닝을 즐깁니다. 아래에서 회사와 프로필을 확인하실 수 있어요.
       </p>
+      
+      <!-- ================================================
+           버튼 그리드: 다양한 링크 모음
+           ==================================================
+           반응형 그리드로 배열된 6개의 버튼
+      ================================================ -->
       <div class="grid">
+        <!-- NICE평가정보 회사 홈페이지 링크 (새 탭에서 열림) -->
         <a class="btn" href="https://www.nice.co.kr" target="_blank" rel="noopener">회사 홈페이지</a>
+        
+        <!-- 사용자 이메일로 메일 보내기 링크 -->
         <a class="btn" href="mailto:sspark@nice.co.kr">이메일 보내기</a>
+        
+        <!-- LinkedIn 프로필 링크 (새 탭에서 열림) -->
         <a class="btn" href="https://www.linkedin.com/in/sangsoon-park" target="_blank" rel="noopener">LinkedIn</a>
+        
+        <!-- Facebook 프로필 링크 (새 탭에서 열림) -->
         <a class="btn" href="https://www.facebook.com/sangsoon.park.78" target="_blank" rel="noopener">Facebook</a>
+        
+        <!-- 이력/프로필 페이지로의 내부 링크 (resume.html) -->
         <a class="btn" href="./resume.html">이력 / 프로필</a>
+        
+        <!-- ChatGPT와 대화하는 페이지로의 내부 링크 (chat.html) -->
         <a class="btn" href="./chat.html">GPT와 대화하기</a>
       </div>
-      <footer>© <span id="y"></span> Sangsoon Park — sangsoon.com <img src="https://hits.sh/sangsoon-park.github.io.svg?style=flat-square&label=visits" alt="visits" style="vertical-align:middle;margin-left:6px"></footer>
+      
+      <!-- ================================================
+           페이지 하단 정보
+           ==================================================
+           저작권 정보 및 방문자 통계
+      ================================================ -->
+      <footer>
+        <!-- 
+          저작권 표기:
+          - <span id="y"></span>: JavaScript로 현재 연도 자동 삽입
+          - 외부 이미지: 방문자 통계를 보여주는 배지
+        -->
+        © <span id="y"></span> Sangsoon Park — sangsoon.com <img src="https://hits.sh/sangsoon-park.github.io.svg?style=flat-square&label=visits" alt="visits" style="vertical-align:middle;margin-left:6px">
+      </footer>
     </section>
   </main>
+  
+  <!-- ================================================
+       JavaScript 실행 영역
+       ==================================================
+       동적 기능 구현 (연도 자동 업데이트 등)
+  ================================================ -->
+  
+  <!-- 
+    현재 연도를 footer의 <span id="y"> 요소에 삽입하는 스크립트
+    매년 저작권 표시를 자동으로 업데이트하기 위한 코드
+  -->
   <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
 
-<script>try{document.getElementById('y').textContent = new Date().getFullYear();}catch(e){}</script>
+  <!-- 
+    중복 방지 및 오류 처리 스크립트
+    - try-catch 블록으로 오류 발생 시에도 페이지 로드가 중단되지 않도록 함
+    - 위의 스크립트가 실패한 경우의 백업 역할
+  -->
+  <script>try{document.getElementById('y').textContent = new Date().getFullYear();}catch(e){}</script>
 
 </body>
 </html>
